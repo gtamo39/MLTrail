@@ -1,0 +1,32 @@
+# Heavy / generated / private data — never committed (chemistry data stays on this machine)
+# Ignore the vault + any datasets dropped in data/, but keep the spec.
+data/*
+!data/specs.txt
+output/
+
+# Model checkpoints, the registry vault, and datasets/outputs (may contain SMILES)
+registry.json
+*.joblib
+*.pkl
+*.parquet
+*.sdf
+*.csv
+*.xlsx
+
+# Python build / cache artifacts
+__pycache__/
+*.py[cod]
+*.egg-info/
+.ipynb_checkpoints/
+
+# Virtual environments
+.venv/
+venv/
+
+# Local editor / OS junk
+.DS_Store
+.vscode/
+.idea/
+
+# Claude Code per-machine settings
+.claude/settings.local.json

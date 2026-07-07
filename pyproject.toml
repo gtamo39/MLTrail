@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mltrail"
+version = "0.1.0"
+description = "Local, versioned registry (vault) for trained ML models."
+requires-python = ">=3.10"
+# Core deps are already provided by the `ML` conda env. Install the console script
+# without disturbing the conda packages:  pip install -e . --no-deps
+dependencies = ["pandas", "numpy", "pyyaml", "scikit-learn", "joblib"]
+
+[project.optional-dependencies]
+chem = ["rdkit", "openpyxl"]   # featurization + excel; conda-provided in `ML`
+# tests use the stdlib `unittest` — no extra test dependency needed
+
+[project.scripts]
+mltrail = "mltrail.cli:main"
+
+[tool.setuptools]
+packages = ["mltrail"]

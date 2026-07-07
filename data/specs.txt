@@ -1,0 +1,69 @@
+## General purpose:
+build a capability like ML_Flow that we will call here 'MLTrail'. 
+The idea would be that it would act as a vault/registry to store trained machine learning models. 
+For example it would register sklearn models, chemprop checkpoints, reinvent checkpoints etc ...
+There will also be a path to the dataset used for training if available as well as model metrics (e.g. pr_auc) and type
+-mltrail could be called via command line or within jupyter notebooks (see ../CDD_vault get_library.py as example)
+
+## Model Registry
+## ----------------
+
+This will save/update a .json file containing the information of the saved models - primary key is model ID
+
+adding/updating a model to registry
+- mltrain --add --experiment_name HLM --experiment_measure clearance ...
+OR 
+- mtrail --add -ID 123456789 (if the model is already registered and has an ID assigned) --model_path <new model location>
+--> all the other params should stay the same, otherwise an error is thrown
+
+### each model would have the following MANDATORY attributes if added for the first time:
+- add: tells the model it is addition mode
+- id: automatically associated on first upload
+- date: HHMMDD_hh_mm_ss (automatically added when first time upload or updates)
+- experiment_name:  e.g. Log_solubility_with_MF, HLM_truncated
+- experiment_measure: e.g. thermodynamic_solubility, Clearance
+- unit: uM, CLint
+- model_path: the model checkpoint e.g. model.joblib 
+  --> in some cases the model_path can be a folder, this is fine, 
+      it means you need to call the specific model for predictions e.g mltrail --predict --id <model_id> --model_path <folder>/some_model.joblib --dataset <data>
+- model_type: e.g. single_task_classification, single_task_regression, generative, multitask_regression, ...
+- features_type: e.g. MF_2048, H_236, ... 
+
+### and OPTIONAL attributes:
+- dataset_path: e.g. /home/gtamo/HLM.csv
+- comments: e.g. best model for training so far
+- df_pred: true vs predicted labels
+- metrics_name: e.g. [R2, mse, ...] , list! can be many of them
+- metrics_values: [R2_value, mse_value, ...]
+
+## Model prediction
+## ----------------
+
+Given the dataset, mltrain would compute the features e.g. MF_2048 and output predictions.
+So it will need to be paired with a featurizer class that is found separately in python/folder.
+
+### MANDATORY attributes:
+- predict: tell the model to predict
+- id 
+- dataset: the dataset to predict (could be csv or sdf, excel, ...)
+- smiles_column: column containing smiles_column
+- compound_id: column containing compound id (can be n/a)
+- pred_output: where to dump the prediction as a csv which should contain smiles,compound,prediction columns
+
+### with the different command types:
+
+
+-mltrail --list: would ouptut a table with the different models, sorted by alphebetical order with the following columns:
+ --> id, date, experiment_name, experiment_measure
+-mltrail --details --id <model_id> will show all the model attributes one line at a time e.g.
+ --> - id = <model_id>
+     - ...= ... 
+-mltrail --search: will ouput a list of model matching any of the search fields
+
+-mltrain --trail --metrics R2 --output_trail <csv file containing column metric and date so it can be plotted> OR df if called by notebook!
+
+There will be a config.yaml that would specify e.g. where the .json and other files, e.g. featurizing classes/functions would be found.  
+
+## Additional details:
+
+Once installed mltrain excecutable should be put in /bin somewhere so that is can be called with mltrain --... 

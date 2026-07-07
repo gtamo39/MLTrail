@@ -1,0 +1,14 @@
+# MLTrail core dependencies — installed in the `ML` conda env (py3.12), never base.
+# Pinned to the `ML` env as probed on 2026-07-06.
+pandas==3.0.3
+numpy==1.26.4
+PyYAML==6.0.3
+scikit-learn==1.8.0
+rdkit==2025.9.3
+joblib==1.5.3
+openpyxl==3.1.5         # excel (.xlsx) reading via pandas
+# tests use the stdlib `unittest` — no test dependency required
+
+# Optional backends, live in separate envs (not required for the core):
+#   chemprop    # ChemProp checkpoints — present in the `reinvent` env
+#   reinvent    # generative models are metadata-only in MLTrail; never imported
