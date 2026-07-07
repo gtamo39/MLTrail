@@ -10,9 +10,10 @@ Usable from the CLI (`mltrail --...`) and imported in notebooks (methods return 
 ## Status (2026-07-06)
 - **Registry core: built + smoke-tested** (synthetic metadata). Files: `mltrail/{registry,schema,config}.py`.
 - **Predict half: built + smoke-tested** (public SMILES, tiny models). Files: `mltrail/{readers,featurizers,backends,predict}.py`. Verified: MF_2048 + H236 regression (incl. feature_cols reindex), classification (prediction+probability), generative→error, model_path override, invalid-SMILES→null, csv/sdf reading.
-- **CLI + packaging: built + tested** — `mltrail/cli.py`, `pyproject.toml` (`mltrail` console entry point). All verbs exercised: add / overwrite / predict / list / details / search / trail / **delete**.
-- **Tests: 24 passing** — stdlib `unittest` (matches Px_interface style): `tests/{helpers,test_schema,test_registry,test_predict}.py`. Runs directly in the `ML` env — **no pytest needed**. `test_predict` builds models + runs all predictions once (module cache + setUpClass); assertions read the cache.
-- **Demo notebook: built + executed clean** — `notebooks/demo.ipynb` (public SMILES + synthetic models, outputs cleared). Mirrors the test suite.
+- **CLI + packaging: built + tested** — `mltrail/cli.py`, `pyproject.toml` (`mltrail` console entry point). All verbs exercised: add / overwrite / predict / list / details / search / trail / **delete** / **save-trainset**.
+- **Training-set delta storage: built + tested** — `mltrail/training_sets.py`. Per-model folder of timestamped parquet chunks; `save_training_set` runs an internal dedup check and writes only rows not already stored (across all versions); `load_training_set` concats chunks → the full set. Needs `pyarrow`.
+- **Tests: 32 passing** — stdlib `unittest` (matches Px_interface style): `tests/{helpers,test_schema,test_registry,test_predict,test_training_sets}.py`. Runs directly in the `ML` env — **no pytest needed**. `test_predict` builds models + runs all predictions once (module cache + setUpClass); assertions read the cache.
+- **Demo notebook: built + executed clean** — `vignettes/demo.ipynb` (public SMILES + synthetic models, outputs cleared). Mirrors the test suite.
 - **v0.1 feature-complete.** Open follow-ups: pin `requirements.txt` fully, real ChemProp backend (needs `reinvent` env), optional applicability-domain/confidence on predictions.
 
 ## How to run
@@ -54,8 +55,13 @@ MS_ML production sklearn models are saved as a **dict**, not a bare estimator:
 `joblib.dump({'model': est, 'feature_cols': [...], 'features': 'H236', 'sklearn_ver': ...})`.
 Backend must: load dict → take `model` + `feature_cols` → featurize to the universe → **reindex to `feature_cols` (order matters, missing bits → 0)** → predict. Bare estimators (no dict) are also supported (no reindex).
 
-## Config (config.yaml)
-`registry_path`, `date_format`, and `featurizers: {path, module, map: {features_type: function}}`.
+## Config (config/config.yaml)
+`registry_path`, `training_sets_dir`, `date_format`, and `featurizers: {path, module, map: {features_type: function}}`.
+CLI default lookup: `config/config.yaml`, then `config.yaml`, then built-in defaults.
 
-## Module layout
-`mltrail/`: `__init__` (exposes Registry, load_config, predict), `config`, `schema`, `registry`, `readers`, `featurizers`, `backends`, `predict`, `cli`.
+## Training-set delta storage
+`training_sets_dir/<model_id>/<timestamp>_<idx>.parquet` — one chunk per save, holding only rows new vs. all prior chunks. Dedup key defaults to the full row; `dedup_on=[cols]` (e.g. `["smiles"]`) dedups by identity instead. Scope is per-model (accumulates across versions). `--save-trainset --id N --dataset f [--dedup_on smiles]`; API: `reg.save_training_set(id, df_or_path)` / `reg.load_training_set(id)`. Model entry gains a `training_set_dir` key (surfaced by `--details`).
+
+## Repo layout
+`mltrail/`: `__init__` (exposes Registry, load_config, predict), `config`, `schema`, `registry`, `readers`, `featurizers`, `backends`, `predict`, `training_sets`, `cli`.
+`config/config.yaml` · `vignettes/demo.ipynb` · `tests/` · `wiki/` · `data/specs.txt` (vault `data/registry.json` + `data/training_sets/` gitignored).

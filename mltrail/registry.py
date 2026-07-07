@@ -21,6 +21,7 @@ from .schema import (
     ValidationError,
     validate_new_model,
 )
+from .training_sets import load_full, read_full, save_delta
 
 LIST_COLUMNS = ["id", "date", "experiment_name", "experiment_measure"]
 
@@ -155,7 +156,8 @@ class Registry:
             chosen = model["versions"][-1]
         else:
             chosen = next(v for v in model["versions"] if v["version"] == version)
-        return {"id": model["id"], **{f: model[f] for f in IDENTITY_FIELDS}, **chosen}
+        extras = {k: v for k, v in model.items() if k not in {"id", "versions", *IDENTITY_FIELDS}}
+        return {"id": model["id"], **{f: model[f] for f in IDENTITY_FIELDS}, **extras, **chosen}
 
     def list(self):
         """Return a DataFrame (id, date, experiment_name, experiment_measure), one row per model.
@@ -215,3 +217,28 @@ class Registry:
         from .predict import predict as _predict
         return _predict(self, model_id, dataset, smiles_column, compound_id,
                         pred_output, model_path, config=self.config)
+
+    # ---- training-set archive (delta-only storage) -----------------------
+
+    def _training_folder(self, model_id):
+        return Path(self.config.get("training_sets_dir", "data/training_sets")) / str(model_id)
+
+    def save_training_set(self, model_id, data, dedup_on=None):
+        """Archive a model's training set, writing only rows not already stored (delta).
+
+        `data` is a DataFrame or a path (csv/tsv/excel/parquet/sdf). An internal dedup check
+        runs across all prior chunks so overlapping data is never re-saved. Returns a summary
+        dict {n_new, n_existing, n_total, chunk}.
+        """
+        model = self._require(model_id)
+        df = data if isinstance(data, pd.DataFrame) else read_full(data)
+        folder = self._training_folder(model_id)
+        summary = save_delta(folder, df, dedup_on=dedup_on, date_format=self.date_format)
+        model["training_set_dir"] = str(folder)
+        self._save()
+        return summary
+
+    def load_training_set(self, model_id):
+        """Return the full, deduplicated training set for a model (concat of all delta chunks)."""
+        self._require(model_id)
+        return load_full(self._training_folder(model_id))

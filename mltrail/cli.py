@@ -26,8 +26,10 @@ def build_parser():
     mode.add_argument("--search", action="store_true", help="list models matching ANY given field")
     mode.add_argument("--trail", action="store_true", help="track a metric across versions")
     mode.add_argument("--delete", action="store_true", help="delete model --id and its entire version trail")
+    mode.add_argument("--save-trainset", dest="save_trainset", action="store_true",
+                      help="archive model --id's training set (--dataset), storing only new rows")
 
-    p.add_argument("--config", help="path to config.yaml (default: ./config.yaml or built-in defaults)")
+    p.add_argument("--config", help="path to config.yaml (default: ./config/config.yaml or built-in defaults)")
     p.add_argument("--id", type=int, help="model id")
 
     for f in _ENTRY_FIELDS:
@@ -35,7 +37,9 @@ def build_parser():
     p.add_argument("--metrics", nargs="+", metavar="NAME=VALUE",
                    help="add: e.g. --metrics R2=0.81 mse=0.12 ; trail: a single metric name")
 
-    p.add_argument("--dataset", help="predict: dataset to score (csv/tsv/excel/sdf)")
+    p.add_argument("--dataset", help="predict / save-trainset: dataset path (csv/tsv/excel/sdf/parquet)")
+    p.add_argument("--dedup_on", nargs="+", metavar="COL",
+                   help="save-trainset: columns identifying a row (default: all columns)")
     p.add_argument("--smiles_column", help="predict: name of the SMILES column")
     p.add_argument("--compound_id", help="predict: name of the compound-id column (or n/a)")
     p.add_argument("--pred_output", help="predict: CSV path to write predictions to")
@@ -46,7 +50,10 @@ def build_parser():
 def _resolve_config(path):
     if path:
         return load_config(path)
-    return load_config("config.yaml") if Path("config.yaml").exists() else load_config(None)
+    for candidate in ("config/config.yaml", "config.yaml"):
+        if Path(candidate).exists():
+            return load_config(candidate)
+    return load_config(None)
 
 
 def _parse_metrics(items):
@@ -113,6 +120,17 @@ def _cmd_delete(reg, args):
     print(f"model {args.id}: deleted (all versions)")
 
 
+def _cmd_save_trainset(reg, args):
+    if args.id is None:
+        raise ValidationError("--save-trainset requires --id")
+    summary = reg.save_training_set(args.id, args.dataset, dedup_on=args.dedup_on)
+    if summary["chunk"]:
+        print(f"model {args.id}: +{summary['n_new']} new rows "
+              f"(total {summary['n_total']}) -> {summary['chunk']}")
+    else:
+        print(f"model {args.id}: no new rows ({summary['n_existing']} already stored)")
+
+
 def main(argv=None):
     args = build_parser().parse_args(argv)
     reg = Registry.from_config(_resolve_config(args.config))
@@ -131,6 +149,8 @@ def main(argv=None):
             _cmd_trail(reg, args)
         elif args.delete:
             _cmd_delete(reg, args)
+        elif args.save_trainset:
+            _cmd_save_trainset(reg, args)
     except (ValidationError, KeyError, ValueError, FileNotFoundError, NotImplementedError) as e:
         print(f"error: {e}", file=sys.stderr)
         sys.exit(1)

@@ -7,6 +7,7 @@ scikit-learn==1.8.0
 rdkit==2025.9.3
 joblib==1.5.3
 openpyxl==3.1.5         # excel (.xlsx) reading via pandas
+pyarrow==17.0.0         # parquet engine for delta-only training-set storage
 # tests use the stdlib `unittest` — no test dependency required
 
 # Optional backends, live in separate envs (not required for the core):

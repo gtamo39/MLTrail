@@ -22,6 +22,7 @@ PUBLIC_SMILES = ["CCO", "c1ccccc1", "CC(=O)Oc1ccccc1C(=O)O", "CCN(CC)CC", "CCOCC
 def make_config(tmp_dir):
     """A MLTrail config dict with an isolated registry file under tmp_dir."""
     return {"registry_path": str(tmp_dir / "registry.json"),
+            "training_sets_dir": str(tmp_dir / "training_sets"),
             "date_format": "%Y%m%d_%H%M%S", "featurizers": FEATURIZERS}
 
 

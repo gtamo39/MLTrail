@@ -5,6 +5,7 @@ import yaml
 
 DEFAULTS = {
     "registry_path": "data/registry.json",
+    "training_sets_dir": "data/training_sets",
     "date_format": "%Y%m%d_%H%M%S",
     "featurizers": {
         "path": "/home/gtamo/Scripts",
