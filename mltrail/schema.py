@@ -17,7 +17,7 @@ IDENTITY_FIELDS = [
 
 # Version fields: stored per version. model_path is mandatory; the rest optional.
 VERSION_MANDATORY = ["model_path"]
-VERSION_OPTIONAL = ["dataset_path", "comments", "df_pred_path", "metrics"]
+VERSION_OPTIONAL = ["dataset_path", "comment", "df_pred_path", "metrics"]
 VERSION_FIELDS = VERSION_MANDATORY + VERSION_OPTIONAL
 
 # Allowed values. model_type drives prediction-output formatting, so it is enforced.
@@ -41,13 +41,15 @@ class ValidationError(ValueError):
 
 
 def validate_new_model(fields):
-    """Validate the fields of a first-time (--add, no id) model registration.
+    """Validate the identity fields of a first-time (--add, no id) model registration.
 
     Input: a dict of field name -> value (None/absent means not provided).
     Raises ValidationError on any missing mandatory field or invalid model_type.
+    model_path is not checked here — it is vault-derived from the id/version, not caller-set;
+    artifact presence is validated by the Registry before materialization.
     Unknown framework/features_type only warn (returned as a list of messages).
     """
-    missing = [f for f in IDENTITY_FIELDS + VERSION_MANDATORY if not fields.get(f)]
+    missing = [f for f in IDENTITY_FIELDS if not fields.get(f)]
     if missing:
         raise ValidationError(f"missing mandatory field(s): {missing}")
     if fields["model_type"] not in MODEL_TYPES:

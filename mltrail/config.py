@@ -5,13 +5,12 @@ import yaml
 
 DEFAULTS = {
     "registry_path": "data/registry.json",
+    "trained_models_dir": "data/models",
     "training_sets_dir": "data/training_sets",
     "date_format": "%Y%m%d_%H%M%S",
-    "featurizers": {
-        "path": "/home/gtamo/Scripts",
-        "module": "Rdkit_tools",
-        "map": {"MF_2048": "get_MF_bits_from_df", "H236": "compute_H236_features"},
-    },
+    # Empty by default -> MLTrail's built-in featurizers are used (no external module).
+    # Configure a featurizers.module + map to override with an external featurizer.
+    "featurizers": {},
 }
 
 
@@ -26,3 +25,16 @@ def load_config(path=None):
         loaded = yaml.safe_load(Path(path).read_text()) or {}
         config.update(loaded)
     return config
+
+
+# MLTrail's own config.yaml, resolved package-relative so the same vault is found from any CWD.
+PACKAGE_CONFIG = Path(__file__).resolve().parent.parent / "config" / "config.yaml"
+
+
+def default_config():
+    """The default config when no explicit path is given (CLI without --config, notebooks).
+
+    Loads MLTrail's own package-relative ``config/config.yaml`` — so the same vault resolves from
+    any working directory — falling back to built-in defaults if that file is missing.
+    """
+    return load_config(str(PACKAGE_CONFIG)) if PACKAGE_CONFIG.exists() else load_config(None)

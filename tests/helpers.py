@@ -12,18 +12,25 @@ from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from mltrail import Registry
 from mltrail.featurizers import get_featurizer
 
-FEATURIZERS = {"path": "/home/gtamo/Scripts", "module": "Rdkit_tools",
-               "map": {"MF_2048": "get_MF_bits_from_df", "H236": "compute_H236_features"}}
+# External featurizer config (the source the built-ins were vendored from) — used by the
+# parity test to check MLTrail's built-ins match Rdkit_tools bit-for-bit.
+EXTERNAL_FEATURIZERS = {"path": "/home/gtamo/Scripts", "module": "Rdkit_tools",
+                        "map": {"MF_2048": "get_MF_bits_from_df", "H236": "compute_H236_features"}}
 
 # ethanol, benzene, aspirin, triethylamine, diethyl ether
 PUBLIC_SMILES = ["CCO", "c1ccccc1", "CC(=O)Oc1ccccc1C(=O)O", "CCN(CC)CC", "CCOCC"]
 
 
 def make_config(tmp_dir):
-    """A MLTrail config dict with an isolated registry file under tmp_dir."""
+    """A MLTrail config dict with an isolated registry file under tmp_dir.
+
+    featurizers is empty -> the built-in standalone featurizers are used, so the suite runs
+    without the external Rdkit_tools path.
+    """
     return {"registry_path": str(tmp_dir / "registry.json"),
+            "trained_models_dir": str(tmp_dir / "models"),
             "training_sets_dir": str(tmp_dir / "training_sets"),
-            "date_format": "%Y%m%d_%H%M%S", "featurizers": FEATURIZERS}
+            "date_format": "%Y%m%d_%H%M%S", "featurizers": {}}
 
 
 def new_registry(tmp_dir):
@@ -31,13 +38,25 @@ def new_registry(tmp_dir):
     return Registry.from_config(make_config(tmp_dir))
 
 
-def register(registry, model_path="/fake/model.joblib", model_type="single_task_regression",
+def register(registry, model=None, model_type="single_task_regression",
              features_type="MF_2048", framework="sklearn", experiment_name="demo",
              experiment_measure="demo", **extra):
-    """Register a model with sensible defaults; return its id."""
+    """Register a model with sensible defaults; return its id.
+
+    `model` is a path or object imported into the vault; defaults to a tiny picklable object
+    so metadata-only tests need no real artifact on disk.
+    """
     return registry.add(experiment_name=experiment_name, experiment_measure=experiment_measure,
-                        unit="u", model_path=model_path, model_type=model_type,
-                        framework=framework, features_type=features_type, **extra)
+                        unit="u", model={"dummy": True} if model is None else model,
+                        model_type=model_type, framework=framework,
+                        features_type=features_type, **extra)
+
+
+def broken_artifact(tmp_dir, name="broken"):
+    """A file that exists but is NOT a loadable joblib artifact (exercises model_path override)."""
+    path = tmp_dir / f"{name}.joblib"
+    path.write_bytes(b"not a joblib artifact")
+    return str(path)
 
 
 def public_train_df():

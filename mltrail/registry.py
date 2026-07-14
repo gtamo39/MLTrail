@@ -8,20 +8,25 @@ Identity fields are stored once per model; version fields are stored per version
 All mutating ops persist immediately via an atomic write.
 """
 import json
+import shutil
 import warnings
 from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
 
-from .config import load_config
+from .backends import save_model
+from .config import default_config, load_config
 from .schema import (
     IDENTITY_FIELDS,
     VERSION_FIELDS,
     ValidationError,
+    is_generative,
     validate_new_model,
 )
 from .training_sets import load_full, read_full, save_delta
+
+TRAINING_SUBSET_COLUMNS = ["compound_id", "smiles", "label"]
 
 LIST_COLUMNS = ["id", "date", "experiment_name", "experiment_measure"]
 
@@ -40,6 +45,15 @@ class Registry:
         """Build a Registry from a config dict or a path to config.yaml."""
         cfg = config if isinstance(config, dict) else load_config(config)
         return cls(cfg["registry_path"], cfg.get("date_format", "%Y%m%d_%H%M%S"), config=cfg)
+
+    @classmethod
+    def from_default(cls):
+        """Build a Registry from MLTrail's own package-relative config — no path needed.
+
+        The notebook/library counterpart of running the CLI with no ``--config``: resolves the
+        same default vault from any working directory.
+        """
+        return cls.from_config(default_config())
 
     # ---- persistence -----------------------------------------------------
 
@@ -79,24 +93,67 @@ class Registry:
 
     # ---- write ops -------------------------------------------------------
 
-    def add(self, model_id=None, overwrite=False, **fields):
-        """Register a model, add a version, or reset an entry.
+    def add(self, model_id=None, overwrite=False, model=None, training_set=None,
+            smiles_column="smiles", compound_id_column="compound_id",
+            label_column=None, dedup_on=None, **fields):
+        """Register a model, add a version, or reset an entry — importing the artifact.
 
         No model_id            -> new model (auto id), version 1.
         model_id, overwrite    -> reset the latest version in place (history kept).
-        model_id               -> append a new version (inherits identity + prior version).
-        Returns the model id.
+        model_id               -> append a new version (identity inherited; needs a `model`).
+        `model` is a path (copied into trained_models_dir) or an object (joblib.dump'ed); the
+        stored model_path is vault-derived as ``<id>_v<ver>``. An optional `training_set`
+        (DataFrame/path) is sliced to compound_id/smiles/label and delta-archived. Returns the id.
         """
         fields = {k: v for k, v in fields.items() if v is not None}
         if model_id is None:
-            return self._add_new(fields)
-        if overwrite:
-            return self._overwrite(model_id, fields)
-        return self._add_version(model_id, fields)
+            new_id = self._add_new(fields, model)
+        elif overwrite:
+            new_id = self._overwrite(model_id, fields, model)
+        else:
+            new_id = self._add_version(model_id, fields, model)
+        if training_set is not None:
+            df = training_set if isinstance(training_set, pd.DataFrame) else read_full(training_set)
+            subset = self._training_subset(df, compound_id_column, smiles_column, label_column)
+            self.save_training_set(new_id, subset, dedup_on=dedup_on or ["smiles"])
+        return new_id
 
-    def _add_new(self, fields):
+    def _models_dir(self):
+        return Path(self.config.get("trained_models_dir", "data/models"))
+
+    def _materialize(self, model, model_id, version, model_type):
+        """Import a model artifact and return its stored model_path.
+
+        Generative models are stored as a verbatim pointer (never copied — they live outside
+        the vault); all others are copied/dumped into trained_models_dir as ``<id>_v<ver>``.
+        """
+        if is_generative(model_type):
+            if not isinstance(model, (str, Path)):
+                raise ValidationError(
+                    "generative models must be given as a path (stored as a pointer, not imported)"
+                )
+            return str(model)
+        if model is None:
+            raise ValidationError("a model artifact (path or object) is required")
+        return save_model(model, self._models_dir(), model_id, version)
+
+    @staticmethod
+    def _training_subset(df, compound_id_column, smiles_column, label_column):
+        """Slice a training set to [compound_id, smiles, label] (canonical names)."""
+        if not label_column:
+            raise ValidationError("label_column is required to store a training set")
+        cols = [compound_id_column, smiles_column, label_column]
+        missing = [c for c in cols if c not in df.columns]
+        if missing:
+            raise ValidationError(f"training_set missing column(s): {missing}")
+        subset = df[cols].copy()
+        subset.columns = TRAINING_SUBSET_COLUMNS
+        return subset
+
+    def _add_new(self, fields, model):
         validate_new_model(fields)
         model_id = self._data["next_id"]
+        fields["model_path"] = self._materialize(model, model_id, 1, fields["model_type"])
         identity = {f: fields[f] for f in IDENTITY_FIELDS}
         self._data["models"][str(model_id)] = {
             "id": model_id,
@@ -107,42 +164,61 @@ class Registry:
         self._save()
         return model_id
 
-    def _add_version(self, model_id, fields):
-        model = self._require(model_id)
+    def _add_version(self, model_id, fields, model):
+        entry = self._require(model_id)
         for f in IDENTITY_FIELDS:
-            if f in fields and fields[f] != model[f]:
+            if f in fields and fields[f] != entry[f]:
                 raise ValidationError(
                     f"cannot change identity field {f!r} on --add --id "
-                    f"({model[f]!r} -> {fields[f]!r}); use --overwrite to reset the entry"
+                    f"({entry[f]!r} -> {fields[f]!r}); use --overwrite to reset the entry"
                 )
-        version = self._make_version(model["versions"][-1]["version"] + 1, fields)
+        version_num = entry["versions"][-1]["version"] + 1
+        fields["model_path"] = self._materialize(model, model_id, version_num, entry["model_type"])
+        version = self._make_version(version_num, fields)
         if version["metrics"] == "N/A":
             warnings.warn(
                 f"model {model_id} v{version['version']}: no metrics provided; set to 'N/A'. "
                 f"Use `--overwrite --id {model_id}` to add them later.",
                 stacklevel=2,
             )
-        model["versions"].append(version)
+        entry["versions"].append(version)
         self._save()
         return model_id
 
-    def _overwrite(self, model_id, fields):
-        model = self._require(model_id)
+    def _overwrite(self, model_id, fields, model):
+        entry = self._require(model_id)
         for f in IDENTITY_FIELDS:
             if f in fields:
-                model[f] = fields[f]
-        latest = model["versions"][-1]
-        model["versions"][-1] = self._make_version(latest["version"], fields)
+                entry[f] = fields[f]
+        latest = entry["versions"][-1]
+        if model is not None:
+            fields["model_path"] = self._materialize(model, model_id, latest["version"], entry["model_type"])
+        else:
+            fields["model_path"] = latest["model_path"]
+        entry["versions"][-1] = self._make_version(latest["version"], fields)
         self._save()
         return model_id
 
     def delete(self, model_id):
-        """Delete a model and its entire version trail from the registry.
+        """Delete a model, its version trail, and its vault files (artifacts + training set).
 
-        Raises KeyError if the id is unknown. `next_id` is left untouched so ids
-        are never reused. Returns the deleted id.
+        Raises KeyError if the id is unknown. Only artifacts inside trained_models_dir are
+        removed (generative pointers living elsewhere are left alone). `next_id` is left
+        untouched so ids are never reused. Returns the deleted id.
         """
-        self._require(model_id)
+        entry = self._require(model_id)
+        models_dir = self._models_dir().resolve()
+        for version in entry["versions"]:
+            path = Path(version.get("model_path", ""))
+            try:
+                inside_vault = path.resolve().is_relative_to(models_dir)
+            except (OSError, ValueError):
+                inside_vault = False
+            if inside_vault and path.exists():
+                shutil.rmtree(path) if path.is_dir() else path.unlink()
+        ts_folder = self._training_folder(model_id)
+        if ts_folder.exists():
+            shutil.rmtree(ts_folder)
         del self._data["models"][str(model_id)]
         self._save()
         return model_id

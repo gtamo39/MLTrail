@@ -39,7 +39,7 @@ def _build():
             h236=helpers.register(reg, h236, features_type="H236"),
             gen=helpers.register(reg, "/fake/r.ckpt", model_type="generative",
                                  framework="reinvent", features_type="n/a"),
-            bad=helpers.register(reg, "/does/not/exist.joblib"),
+            bad=helpers.register(reg, helpers.broken_artifact(tmp)),
         )
         _CACHE["built"] = dict(
             registry=reg, csv=csv, sdf=sdf, mf_reg=mf_reg, ids=ids,

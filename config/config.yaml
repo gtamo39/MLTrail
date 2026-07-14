@@ -1,20 +1,24 @@
 # MLTrail configuration. Copy this file and edit values to point at a different vault.
 
 # Path to the JSON registry file (the model vault). Created on first --add.
-registry_path: data/registry.json
+registry_path: /data2/MLTrail_vault/registry.json
+
+# Where models live
+trained_models_dir: /data2/MLTrail_vault/models
 
 # Where per-model training-set archives live (delta-only parquet chunks).
-training_sets_dir: data/training_sets
+training_sets_dir: /data2/MLTrail_vault/training_sets
 
 # Timestamp format for the auto-generated `date` field (sortable).
 date_format: "%Y%m%d_%H%M%S"
 
-# Featurizer resolution. Each features_type maps to a callable
-#   df[compound, smiles] -> df[compound, <feature cols>]
-# reused from an external module (guarantees train/predict parity).
-featurizers:
-  path: /home/gtamo/Scripts     # prepended to sys.path so `module` imports
-  module: Rdkit_tools
-  map:
-    MF_2048: get_MF_bits_from_df
-    H236: compute_H236_features
+# Featurizer resolution. By DEFAULT MLTrail uses its own built-in, standalone featurizers
+# (MF_2048, H236 — RDKit only, no external path). To OVERRIDE with an external module, uncomment
+# below and fill in path/module/map; it must produce bit-identical features (a parity test checks
+# the built-ins match Rdkit_tools). The callable contract is df[compound, smiles] -> df[compound, ...].
+# featurizers:
+#   path: /home/gtamo/Scripts     # prepended to sys.path so `module` imports
+#   module: Rdkit_tools
+#   map:
+#     MF_2048: get_MF_bits_from_df
+#     H236: compute_H236_features

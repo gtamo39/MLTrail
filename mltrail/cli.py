@@ -5,14 +5,38 @@ Every mode is a one-to-one call into the same core used from notebooks.
 """
 import argparse
 import sys
-from pathlib import Path
 
-from .config import load_config
+import pandas as pd
+
+from .config import default_config, load_config
 from .registry import Registry
 from .schema import IDENTITY_FIELDS, ValidationError
 
-# Registry fields settable via CLI flags (identity + optional version fields; model_path handled with them).
-_ENTRY_FIELDS = IDENTITY_FIELDS + ["model_path", "dataset_path", "comments", "df_pred_path"]
+# Registry metadata fields settable via CLI flags (model_path/comment handled explicitly below).
+_ENTRY_FIELDS = IDENTITY_FIELDS + ["dataset_path", "df_pred_path"]
+
+
+def _format_table(df):
+    """Render a DataFrame as a bordered box table for the terminal (display only, no truncation).
+
+    Numeric columns are right-aligned, everything else left-aligned; NaN prints blank.
+    Returns a placeholder string for an empty frame.
+    """
+    if df.empty:
+        return "(no matching models)"
+    cols = [str(c) for c in df.columns]
+    rows = [["" if pd.isna(v) else str(v) for v in row] for row in df.itertuples(index=False)]
+    widths = [max(len(cols[i]), *(len(r[i]) for r in rows)) for i in range(len(cols))]
+    align = [str.rjust if pd.api.types.is_numeric_dtype(df[c]) else str.ljust for c in df.columns]
+
+    def line(left, mid, right):
+        return left + mid.join("─" * (w + 2) for w in widths) + right
+
+    def row(cells):
+        return "│ " + " │ ".join(align[i](cells[i], widths[i]) for i in range(len(cols))) + " │"
+
+    return "\n".join([line("┌", "┬", "┐"), row(cols), line("├", "┼", "┤"),
+                      *(row(r) for r in rows), line("└", "┴", "┘")])
 
 
 def build_parser():
@@ -29,14 +53,23 @@ def build_parser():
     mode.add_argument("--save-trainset", dest="save_trainset", action="store_true",
                       help="archive model --id's training set (--dataset), storing only new rows")
 
-    p.add_argument("--config", help="path to config.yaml (default: ./config/config.yaml or built-in defaults)")
+    p.add_argument("--config", help="path to config.yaml (default: MLTrail's own config/config.yaml, wherever the package lives)")
     p.add_argument("--id", type=int, help="model id")
 
     for f in _ENTRY_FIELDS:
         p.add_argument(f"--{f}")
+    p.add_argument("--model_path",
+                   help="add: source model artifact to import into the vault (file or dir); "
+                        "predict: path override for the artifact to load")
+    p.add_argument("--comment",
+                   help="add: free-text note documenting what this model/version does "
+                        "(stored per version, shown by --details)")
     p.add_argument("--metrics", nargs="+", metavar="NAME=VALUE",
                    help="add: e.g. --metrics R2=0.81 mse=0.12 ; trail: a single metric name")
 
+    p.add_argument("--training_set",
+                   help="add: training-set path to archive (sliced to compound_id/smiles/label)")
+    p.add_argument("--label_column", help="add: name of the label/target column in --training_set")
     p.add_argument("--dataset", help="predict / save-trainset: dataset path (csv/tsv/excel/sdf/parquet)")
     p.add_argument("--dedup_on", nargs="+", metavar="COL",
                    help="save-trainset: columns identifying a row (default: all columns)")
@@ -48,12 +81,9 @@ def build_parser():
 
 
 def _resolve_config(path):
-    if path:
-        return load_config(path)
-    for candidate in ("config/config.yaml", "config.yaml"):
-        if Path(candidate).exists():
-            return load_config(candidate)
-    return load_config(None)
+    # --config wins; otherwise MLTrail's own package-relative config (default_config), so the
+    # same vault resolves from any working directory (not the CWD's config.yaml).
+    return load_config(path) if path else default_config()
 
 
 def _parse_metrics(items):
@@ -72,9 +102,16 @@ def _cmd_add(reg, args):
     if args.overwrite and args.id is None:
         raise ValidationError("--overwrite requires --id")
     fields = {f: getattr(args, f) for f in _ENTRY_FIELDS}
+    fields["comment"] = args.comment
     if args.metrics:
         fields["metrics"] = _parse_metrics(args.metrics)
-    model_id = reg.add(model_id=args.id, overwrite=args.overwrite, **fields)
+    model_id = reg.add(
+        model_id=args.id, overwrite=args.overwrite,
+        model=args.model_path, training_set=args.training_set, label_column=args.label_column,
+        smiles_column=args.smiles_column or "smiles",
+        compound_id_column=args.compound_id or "compound_id",
+        **fields,
+    )
     action = "overwritten" if args.overwrite else ("new version added" if args.id else "added")
     print(f"model {model_id}: {action}")
 
@@ -98,7 +135,7 @@ def _cmd_details(reg, args):
 
 def _cmd_search(reg, args):
     filters = {f: getattr(args, f) for f in IDENTITY_FIELDS if getattr(args, f) is not None}
-    print(reg.search(**filters).to_string(index=False))
+    print(_format_table(reg.search(**filters)))
 
 
 def _cmd_trail(reg, args):
@@ -110,7 +147,7 @@ def _cmd_trail(reg, args):
         df.to_csv(args.output_trail, index=False)
         print(f"wrote trail ({len(df)} rows) -> {args.output_trail}")
     else:
-        print(df.to_string(index=False))
+        print(_format_table(df))
 
 
 def _cmd_delete(reg, args):
@@ -140,7 +177,7 @@ def main(argv=None):
         elif args.predict:
             _cmd_predict(reg, args)
         elif args.list:
-            print(reg.list().to_string(index=False))
+            print(_format_table(reg.list()))
         elif args.details:
             _cmd_details(reg, args)
         elif args.search:
