@@ -12,6 +12,14 @@ training_sets_dir: /data2/MLTrail_vault/training_sets
 # Timestamp format for the auto-generated `date` field (sortable).
 date_format: "%Y%m%d_%H%M%S"
 
+# chemprop prediction. chemprop is NOT a dependency of MLTrail's env, so registered chemprop
+# models are predicted by shelling out to a chemprop-env CLI. `cli` points at that executable;
+# `accelerator` (cpu|gpu|auto) is passed through — cpu is a safe default for small predict batches
+# and avoids contending with any training on the GPU.
+chemprop:
+  cli: /home/gtamo/miniconda3/envs/chemprop/bin/chemprop
+  accelerator: cpu
+
 # Featurizer resolution. By DEFAULT MLTrail uses its own built-in, standalone featurizers
 # (MF_2048, H236 — RDKit only, no external path). To OVERRIDE with an external module, uncomment
 # below and fill in path/module/map; it must produce bit-identical features (a parity test checks

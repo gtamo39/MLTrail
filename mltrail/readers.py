@@ -7,10 +7,13 @@ import pandas as pd
 def read_dataset(path, smiles_column=None, compound_id=None):
     """Read a prediction dataset into a DataFrame with 'compound' and 'smiles' columns.
 
-    csv/tsv/excel require `smiles_column`; SDF derives SMILES from the embedded structure.
-    `compound_id` names the id column (csv/excel) or property (sdf); when absent or "n/a",
-    row indices are used as the compound id.
+    `path` is a file path (csv/tsv/excel/sdf) OR an in-memory pandas DataFrame (used as-is, no
+    file I/O). csv/tsv/excel/DataFrame require `smiles_column`; SDF derives SMILES from the
+    embedded structure. `compound_id` names the id column (tabular) or property (sdf); when
+    absent or "n/a", row indices are used as the compound id.
     """
+    if isinstance(path, pd.DataFrame):
+        return _standardize(path, smiles_column, compound_id)
     ext = Path(path).suffix.lower()
     if ext == ".sdf":
         return _read_sdf(path, compound_id)

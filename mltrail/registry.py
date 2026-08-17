@@ -287,8 +287,10 @@ class Registry:
                 pred_output=None, model_path=None):
         """Predict properties for `dataset` using a registered model (returns a DataFrame).
 
-        Featurizes per the model's config, aligns to its trained columns, and writes a CSV
-        when `pred_output` is given. Raises ValueError for generative models.
+        `dataset` is a file path (csv/tsv/excel/sdf) or an in-memory pandas DataFrame — pass a
+        frame directly to skip the temp-file round-trip. Featurizes per the model's config, aligns
+        to its trained columns, and writes a CSV when `pred_output` is given. Raises ValueError for
+        generative models.
         """
         from .predict import predict as _predict
         return _predict(self, model_id, dataset, smiles_column, compound_id,

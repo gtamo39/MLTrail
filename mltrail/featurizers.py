@@ -100,8 +100,51 @@ def h236(df_, nBits_morgan=2048, nBits_ap=2048, radius=2):
     ], axis=1)
 
 
+def h237(df_, nBits_morgan=2048, nBits_ap=2048, radius=2, normalized=True, prefix='DS_'):
+    """H236 plus the descriptastorus RDKit2D descriptor block.
+
+    ``df[compound, smiles] -> df[compound, <every H236 column>, DS_<descriptor>...]``
+    (~200 descriptors). Prefixed because descriptastorus emits names that collide with
+    H236's physchem block (``TPSA``, ``MolLogP`` vs ``TPSA``/``LogP``). ``normalized=True``
+    uses the CDF-normalised generator ([0, 1] values) — the setting the models are trained
+    with. Rows whose SMILES or descriptors fail are dropped, as in H236. Vendored verbatim
+    from ``Rdkit_tools.compute_H237_features`` (serial path).
+
+    Unlike the other built-ins this needs the optional ``descriptastorus`` package; H236 and
+    MF_2048 stay usable without it.
+    """
+    try:
+        from descriptastorus.descriptors import rdDescriptors, rdNormalizedDescriptors
+    except ImportError as e:
+        raise ImportError(
+            "H237 features need the optional 'descriptastorus' package. Install it into the "
+            "project conda env (never base): pip install "
+            "git+https://github.com/bp-kelley/descriptastorus"
+        ) from e
+
+    base = h236(df_, nBits_morgan=nBits_morgan, nBits_ap=nBits_ap, radius=radius)
+    smiles = df_.drop_duplicates('compound').set_index('compound')['smiles']
+
+    gen = rdNormalizedDescriptors.RDKit2DNormalized() if normalized else rdDescriptors.RDKit2D()
+    cols = [f'{prefix}{name}' for name, _ in gen.columns]
+
+    values = np.full((len(base), len(cols)), np.nan, dtype=np.float64)
+    valid = np.zeros(len(base), dtype=bool)
+    for i, cmp in enumerate(base['compound']):
+        smi = smiles.get(cmp)
+        if not isinstance(smi, str) or not smi:
+            continue
+        res = gen.process(smi)
+        if res and res[0]:              # res[0] is the success flag
+            values[i] = res[1:]
+            valid[i] = True
+
+    return pd.concat([base.loc[valid].reset_index(drop=True),
+                      pd.DataFrame(values[valid], columns=cols)], axis=1)
+
+
 # features_type -> built-in callable. Extend here to add a new standalone featurizer.
-BUILTIN_FEATURIZERS = {"MF_2048": morgan_2048, "H236": h236}
+BUILTIN_FEATURIZERS = {"MF_2048": morgan_2048, "H236": h236, "H237": h237}
 
 
 def get_featurizer(features_type, config):

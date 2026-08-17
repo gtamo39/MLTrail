@@ -11,6 +11,9 @@ DEFAULTS = {
     # Empty by default -> MLTrail's built-in featurizers are used (no external module).
     # Configure a featurizers.module + map to override with an external featurizer.
     "featurizers": {},
+    # chemprop models are predicted by shelling out to a chemprop-env CLI (chemprop is not a
+    # dependency of MLTrail's own env). Empty -> `chemprop` on PATH, auto accelerator.
+    "chemprop": {},
 }
 
 

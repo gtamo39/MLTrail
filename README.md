@@ -139,6 +139,19 @@ mltrail --predict --id 1 --dataset new_compounds.sdf --pred_output preds.csv
 Datasets can be csv / tsv / excel / sdf / parquet. Invalid SMILES yield null predictions (reported
 in the summary line).
 
+#### chemprop (D-MPNN) models
+
+chemprop models are registered like any other — `--framework chemprop`, the `--model_path` a trained
+chemprop model directory (or a `.pt`/`.ckpt` checkpoint), and `--target_columns` naming the (multitask)
+endpoints, which become the prediction output columns. No `features_type` featurizer is used — chemprop
+builds its graph from SMILES itself (`features_type: smiles`).
+
+Because chemprop is not a dependency of MLTrail's own env, prediction **shells out to a chemprop CLI**,
+configured under `chemprop:` in `config.yaml` (`cli:` = the chemprop executable, `accelerator:` =
+cpu|gpu|auto). This works whether MLTrail runs from the `ML` env (shells to the chemprop env's binary)
+or from the `chemprop` env (`chemprop` on PATH). A registered chemprop model then predicts through the
+exact same `--predict` / `registry.predict(...)` path as sklearn models, returning one column per target.
+
 ### Inspecting the registry
 
 ```bash
@@ -170,7 +183,8 @@ reg.add(experiment_name="solubility", experiment_measure="logS", unit="log(mol/L
         training_set=train_df, compound_id_column="id", label_column="logS")
 
 reg.list()                       # -> DataFrame
-reg.predict(1, "new_compounds.csv", smiles_column="smiles")   # -> DataFrame
+reg.predict(1, "new_compounds.csv", smiles_column="smiles")   # -> DataFrame (path ...)
+reg.predict(1, df, smiles_column="smiles", compound_id="compound")   # ... or an in-memory DataFrame
 reg.trail("R2", model_id=1)      # -> DataFrame
 reg.load_training_set(1)         # -> DataFrame (compound_id, smiles, label)
 ```

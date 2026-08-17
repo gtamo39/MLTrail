@@ -16,8 +16,10 @@ IDENTITY_FIELDS = [
 ]
 
 # Version fields: stored per version. model_path is mandatory; the rest optional.
+# target_columns: ordered target names for multitask models (e.g. chemprop) — names the
+# prediction output columns; None/absent for single-output models.
 VERSION_MANDATORY = ["model_path"]
-VERSION_OPTIONAL = ["dataset_path", "comment", "df_pred_path", "metrics"]
+VERSION_OPTIONAL = ["dataset_path", "comment", "df_pred_path", "metrics", "target_columns"]
 VERSION_FIELDS = VERSION_MANDATORY + VERSION_OPTIONAL
 
 # Allowed values. model_type drives prediction-output formatting, so it is enforced.

@@ -10,6 +10,11 @@ openpyxl==3.1.5         # excel (.xlsx) reading via pandas
 pyarrow==17.0.0         # parquet engine for delta-only training-set storage
 # tests use the stdlib `unittest` — no test dependency required
 
+# Optional: needed by the H237 featurizer only (H236 / MF_2048 need nothing beyond rdkit).
+# Not on PyPI -> pinned to the installed commit. Predicting an H237-registered model raises a
+# clear ImportError without it; every other features_type is unaffected.
+descriptastorus @ git+https://github.com/bp-kelley/descriptastorus@9a190343bcd3cfd35142d378d952613bcac40797
+
 # Optional backends, live in separate envs (not required for the core):
 #   chemprop    # ChemProp checkpoints — present in the `reinvent` env
 #   reinvent    # generative models are metadata-only in MLTrail; never imported

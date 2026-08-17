@@ -14,6 +14,8 @@ from pathlib import Path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))   # so `import helpers` resolves
 
+import pandas as pd
+
 import helpers
 from mltrail import Registry
 
@@ -49,6 +51,8 @@ def _build():
             preds_na=reg.predict(ids["reg"], csv, smiles_column="smi", compound_id="n/a"),
             preds_override=reg.predict(ids["bad"], csv, smiles_column="smi", model_path=mf_reg),
             preds_sdf=reg.predict(ids["reg"], sdf, compound_id="cid"),
+            # same rows as `csv`, passed as an in-memory DataFrame instead of a file
+            preds_df=reg.predict(ids["reg"], pd.read_csv(csv), smiles_column="smi", compound_id="cid"),
         )
     return _CACHE["built"]
 
@@ -94,6 +98,11 @@ class TestPredict(unittest.TestCase):
         # generative models cannot predict
         with self.assertRaisesRegex(ValueError, "generative"):
             self.b["registry"].predict(self.b["ids"]["gen"], self.b["csv"], smiles_column="smi")
+
+    def test_predict_from_dataframe_matches_csv(self):
+        """Passing an in-memory DataFrame yields the same predictions as reading the CSV."""
+        # DataFrame input is equivalent to the file path (no temp-file round-trip needed)
+        pd.testing.assert_frame_equal(self.b["preds_df"], self.b["preds_reg"])
 
     def test_model_path_override(self):
         """A model_path override is used instead of the registered (nonexistent) path."""

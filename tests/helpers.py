@@ -15,7 +15,8 @@ from mltrail.featurizers import get_featurizer
 # External featurizer config (the source the built-ins were vendored from) — used by the
 # parity test to check MLTrail's built-ins match Rdkit_tools bit-for-bit.
 EXTERNAL_FEATURIZERS = {"path": "/home/gtamo/Scripts", "module": "Rdkit_tools",
-                        "map": {"MF_2048": "get_MF_bits_from_df", "H236": "compute_H236_features"}}
+                        "map": {"MF_2048": "get_MF_bits_from_df", "H236": "compute_H236_features",
+                                "H237": "compute_H237_features"}}
 
 # ethanol, benzene, aspirin, triethylamine, diethyl ether
 PUBLIC_SMILES = ["CCO", "c1ccccc1", "CC(=O)Oc1ccccc1C(=O)O", "CCN(CC)CC", "CCOCC"]

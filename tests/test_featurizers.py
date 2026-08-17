@@ -54,6 +54,19 @@ class TestBuiltinFeaturizers(unittest.TestCase):
         # only the parseable molecule survives, keyed by its compound id
         self.assertEqual(list(out["compound"]), ["ok"])
 
+    def test_h237_is_h236_plus_descriptor_block(self):
+        """H237 yields the H236 universe plus ~200 prefixed DS_ descriptor columns."""
+        try:
+            out = get_featurizer("H237", {})(_input_df())
+        except ImportError as e:
+            self.skipTest(f"descriptastorus not installed: {e}")
+        h236 = get_featurizer("H236", {})(_input_df())
+        # every H236 column survives, in order, followed by the DS_ block
+        self.assertEqual(list(out.columns)[:h236.shape[1]], list(h236.columns))
+        # the descriptor block is prefixed so it cannot collide with H236's TPSA / LogP
+        self.assertTrue(all(c.startswith("DS_") for c in out.columns[h236.shape[1]:]))
+        self.assertGreater(out.shape[1] - h236.shape[1], 100)
+
     def test_unknown_features_type_raises(self):
         """Requesting a features_type neither built-in nor externally mapped raises KeyError."""
         # nonexistent featurizer -> KeyError
@@ -88,6 +101,13 @@ class TestParityWithRdkitTools(unittest.TestCase):
     def test_h236_parity(self):
         """Built-in H236 == Rdkit_tools.compute_H236_features."""
         self._assert_parity("H236")
+
+    def test_h237_parity(self):
+        """Built-in H237 == Rdkit_tools.compute_H237_features (needs descriptastorus)."""
+        try:
+            self._assert_parity("H237")
+        except ImportError as e:
+            self.skipTest(f"descriptastorus not installed: {e}")
 
 
 if __name__ == "__main__":
