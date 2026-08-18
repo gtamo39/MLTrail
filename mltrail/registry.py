@@ -28,7 +28,7 @@ from .training_sets import load_full, read_full, save_delta
 
 TRAINING_SUBSET_COLUMNS = ["compound_id", "smiles", "label"]
 
-LIST_COLUMNS = ["id", "date", "experiment_name", "experiment_measure"]
+LIST_COLUMNS = ["id", "date", "experiment_name", "experiment_measure", "comment"]
 
 
 class Registry:
@@ -236,12 +236,13 @@ class Registry:
         return {"id": model["id"], **{f: model[f] for f in IDENTITY_FIELDS}, **extras, **chosen}
 
     def list(self):
-        """Return a DataFrame (id, date, experiment_name, experiment_measure), one row per model.
+        """Return a DataFrame (id, date, experiment_name, experiment_measure, comment), one row per model.
 
         Rows reflect each model's latest version, sorted alphabetically by experiment_name.
+        `comment` is blank for models saved without one.
         """
         rows = [
-            {c: self.details(m["id"])[c] for c in LIST_COLUMNS}
+            {c: self.details(m["id"]).get(c, "") for c in LIST_COLUMNS}
             for m in self._data["models"].values()
         ]
         df = pd.DataFrame(rows, columns=LIST_COLUMNS)
@@ -254,7 +255,7 @@ class Registry:
         for model in self._data["models"].values():
             record = self.details(model["id"])
             if any(self._match(record.get(k), v) for k, v in filters.items()):
-                rows.append({c: record[c] for c in LIST_COLUMNS})
+                rows.append({c: record.get(c, "") for c in LIST_COLUMNS})
         return pd.DataFrame(rows, columns=LIST_COLUMNS)
 
     @staticmethod

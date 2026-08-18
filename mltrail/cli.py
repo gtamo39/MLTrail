@@ -16,16 +16,21 @@ from .schema import IDENTITY_FIELDS, ValidationError
 _ENTRY_FIELDS = IDENTITY_FIELDS + ["dataset_path", "df_pred_path"]
 
 
-def _format_table(df):
-    """Render a DataFrame as a bordered box table for the terminal (display only, no truncation).
+def _format_table(df, max_col_width=60):
+    """Render a DataFrame as a bordered box table for the terminal.
 
-    Numeric columns are right-aligned, everything else left-aligned; NaN prints blank.
-    Returns a placeholder string for an empty frame.
+    Numeric columns are right-aligned, everything else left-aligned; NaN prints blank. Cells
+    wider than `max_col_width` are clipped with an ellipsis for readability (display only — the
+    DataFrame keeps the full value; use --details for the full text). Empty frame -> placeholder.
     """
     if df.empty:
         return "(no matching models)"
-    cols = [str(c) for c in df.columns]
-    rows = [["" if pd.isna(v) else str(v) for v in row] for row in df.itertuples(index=False)]
+
+    def clip(s):
+        return s if len(s) <= max_col_width else s[:max_col_width - 1] + "…"
+
+    cols = [clip(str(c)) for c in df.columns]
+    rows = [[clip("" if pd.isna(v) else str(v)) for v in row] for row in df.itertuples(index=False)]
     widths = [max(len(cols[i]), *(len(r[i]) for r in rows)) for i in range(len(cols))]
     align = [str.rjust if pd.api.types.is_numeric_dtype(df[c]) else str.ljust for c in df.columns]
 

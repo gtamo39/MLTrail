@@ -102,6 +102,7 @@ Usable from the CLI (`mltrail --...`) and imported in notebooks (methods return 
 `{"next_id": int, "models": {"<id>": {id, <identity...>, "versions": [<version...>]}}}`
 - **Identity (immutable across versions, all mandatory):** experiment_name, experiment_measure, unit, model_type, framework, features_type.
 - **Version fields:** model_path (mandatory), + optional dataset_path, comment, df_pred_path, metrics. Plus auto `version`, `date`. (`comment` = free-text note on what the model/version does; CLI `--comment`, shown by `--details`. Renamed from `comments` 2026-07-14.)
+- **`--list` / `reg.list()` columns (2026-08-18):** `id, date, experiment_name, experiment_measure, comment` (latest version's `comment`, blank if none). The CLI table clips each cell to 60 chars with `…` for readability (display only; `reg.list()` returns full text, `--details` shows the whole comment). Same clipping applies to `--search`.
 
 ## Featurizers (features_type → callable)
 **Built-in and standalone by default** — vendored verbatim into `mltrail/featurizers.py` (RDKit only), so no external path is needed. `BUILTIN_FEATURIZERS = {"MF_2048": morgan_2048, "H236": h236, "H237": h237}`. `get_featurizer` resolves built-ins unless the config's `featurizers` section names a `module` that maps the type (then that external module **overrides** — the original parity-with-training escape hatch). Contract: `df[compound, smiles] → df[compound, <feature cols>]`.

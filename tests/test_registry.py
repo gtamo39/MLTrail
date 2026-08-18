@@ -139,14 +139,17 @@ class TestRegistry(unittest.TestCase):
         self.assertFalse(artifact.exists() or ts_folder.exists())
 
     def test_list_sorted_alphabetically(self):
-        """--list returns the four spec columns sorted case-insensitively by experiment_name."""
-        self.add(experiment_name="Zeta")
+        """--list returns the spec columns (incl. comment) sorted case-insensitively by experiment_name."""
+        self.add(experiment_name="Zeta", comment="built on the July cohort")
         self.add(experiment_name="alpha")
         listing = self.reg.list()
-        # columns match the spec
-        self.assertEqual(list(listing.columns), ["id", "date", "experiment_name", "experiment_measure"])
+        # columns match the spec, with comment appended
+        self.assertEqual(list(listing.columns),
+                         ["id", "date", "experiment_name", "experiment_measure", "comment"])
         # rows are ordered alphabetically (case-insensitive)
         self.assertEqual(list(listing["experiment_name"]), ["alpha", "Zeta"])
+        # the saved comment surfaces; a model without one shows blank
+        self.assertEqual(list(listing["comment"]), ["", "built on the July cohort"])
 
     def test_search_or_substring(self):
         """--search matches ANY provided field by case-insensitive substring."""

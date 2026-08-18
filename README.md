@@ -155,7 +155,7 @@ exact same `--predict` / `registry.predict(...)` path as sklearn models, returni
 ### Inspecting the registry
 
 ```bash
-mltrail --list                                   # id, date, experiment_name, measure
+mltrail --list                                   # id, date, experiment_name, measure, comment (clipped; full in --details)
 mltrail --details --id 1                          # every attribute of a model
 mltrail --search --framework sklearn              # models matching ANY given identity field
 mltrail --trail --id 1 --metrics R2               # a metric across versions (--output_trail to CSV)
